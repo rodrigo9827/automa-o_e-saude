@@ -20,6 +20,8 @@ def clicou_cns(event):
     cns = linha.replace("CNS:", "").strip()
     automacao.iniciar(cns)
 
+
+# Início da janela principal
 root = Tk()
 frm = ttk.Frame(root, padding=10)
 frm.grid()
