@@ -9,7 +9,7 @@ def buscar_cns(nome):
             if "Enfermeira (o)" in linha[1]:
                 if linha[2] == nome:
                      if linha[3]=="Sim":
-                         texto += "CNS: " + linha[4] + '\n'           
+                         texto += "CNS: " + linha[4] + ", " + linha[0] + '\n'           
     return texto
 
 def listar_enfermeiras():
