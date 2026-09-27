@@ -22,8 +22,5 @@ def listar_enfermeiras():
                 if linha[2] != "" and linha[2] not in nomes:
                     nomes.append(linha[2])
     nomes.sort()
-    return nomes
-
-
-                     
+    return nomes                   
 

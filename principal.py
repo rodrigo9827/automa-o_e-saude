@@ -3,6 +3,8 @@ from tkinter import ttk
 import tratando_csv
 import automacao
 
+
+# Mostra os CNS da enfermeira escolhida no menu
 def mostrar_cns(event):
     enfermeira = nome.get()
     texto = tratando_csv.buscar_cns(enfermeira)
@@ -12,21 +14,24 @@ def mostrar_cns(event):
         if linha != "":
             resultado.insert(END, linha)
 
+
+# Quando clica num CNS, manda o número para a automação
 def clicou_cns(event):
     selecionado = resultado.curselection()
     if not selecionado:
         return
     linha = resultado.get(selecionado[0])
-    cns = linha.replace("CNS:", "").strip()
+    cns = linha.replace("CNS:", "").split(", ")[0].strip()
     automacao.iniciar(cns)
 
 
 # Início da janela principal
 root = Tk()
+root.title("Retorno de Gestantes")
 frm = ttk.Frame(root, padding=10)
 frm.grid()
 
-#campo do nome da(o) Enfermeira(o)
+# campo do nome da(o) Enfermeira(o)
 ttk.Label(frm, text="Enfermeira (o):").grid(column=0, row=0)
 
 # campo para listar enfermeira(o)
@@ -34,7 +39,7 @@ nome = ttk.Combobox(frm, values=tratando_csv.listar_enfermeiras(), state="readon
 nome.grid(column=1, row=0)
 nome.bind("<<ComboboxSelected>>", mostrar_cns)
 
-#mostrar a lista de CNS do enfermeiro(a)
+# mostrar a lista de CNS do enfermeiro(a)
 resultado = Listbox(frm, width=45, height=15, exportselection=False)
 resultado.grid(column=0, row=1, columnspan=2)
 
@@ -45,6 +50,7 @@ barra.grid(column=2, row=1, sticky='ns')
 # posicionamento da barra de scroll
 resultado.config(yscrollcommand=barra.set)
 
+# clique no CNS inicia a automação
 resultado.bind("<<ListboxSelect>>", clicou_cns)
 
 
