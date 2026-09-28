@@ -1,26 +1,50 @@
-import csv
+import pyodbc
 
-# Ler csv e retornar apenas o CNS do atendimento da(o) enfermeira(o).
-def buscar_cns(nome):
-    texto = ""
-    with open('Efetividade_6.0_2026.csv', mode='r', encoding='utf-8') as f:
-        leitor = csv.reader(f, delimiter=',')
-        for linha in leitor:
-            if "Enfermeira (o)" in linha[1]:
-                if linha[2] == nome:
-                     if linha[3]=="Sim":
-                        texto += "CNS: " + linha[4] + ", " + linha[0].split(" ")[0] + '\n'           
-    return texto
+# Endereço do banco (o mesmo que funcionou no teste.py)
+STRING_CONEXAO = (
+    "DRIVER={ODBC Driver 18 for SQL Server};"
+    "SERVER=localhost;"
+    "DATABASE=poc_gestante;"
+    "Trusted_Connection=yes;"
+    "TrustServerCertificate=yes;"
+)
 
-# Mostrar o nome da enfermeira para evitar erro humano.
+
+def conectar():
+    """Abre uma conexão com o banco."""
+    return pyodbc.connect(STRING_CONEXAO)
+
+
 def listar_enfermeiras():
-    nomes = []
-    with open('Efetividade_6.0_2026.csv', mode='r', encoding='utf-8') as f:
-        leitor = csv.reader(f, delimiter=',')
-        for linha in leitor:
-            if "Enfermeira (o)" in linha[1]:
-                if linha[2] != "" and linha[2] not in nomes:
-                    nomes.append(linha[2])
-    nomes.sort()
-    return nomes                   
+    """Devolve a lista de enfermeiras, sem repetir, em ordem alfabética."""
+    conexao = conectar()
+    try:
+        cursor = conexao.cursor()
+        cursor.execute("""
+            SELECT DISTINCT enfermeira
+            FROM dbo.vw_RetornoGestantes
+            WHERE enfermeira IS NOT NULL
+            ORDER BY enfermeira
+        """)
+        return [linha.enfermeira for linha in cursor.fetchall()]
+    finally:
+        conexao.close()
 
+
+def buscar_gestantes(enfermeira):
+    """Devolve as gestantes atendidas pela enfermeira, com IG, retorno e alto risco."""
+    conexao = conectar()
+    try:
+        cursor = conexao.cursor()
+        cursor.execute("""
+            SELECT gestante, cns, data_contato,
+                   ig_semanas, ig_dias_resto,
+                   data_retorno, alto_risco
+            FROM dbo.vw_RetornoGestantes
+            WHERE enfermeira = ?
+            ORDER BY CASE WHEN data_retorno IS NULL THEN 1 ELSE 0 END,
+                     data_retorno
+        """, enfermeira)
+        return cursor.fetchall()
+    finally:
+        conexao.close()

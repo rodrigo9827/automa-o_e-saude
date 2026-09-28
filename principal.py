@@ -4,24 +4,47 @@ import tratando_csv
 import automacao
 
 
-# Mostra os CNS da enfermeira escolhida no menu
-def mostrar_cns(event):
+def formatar_data(data):
+    """Transforma a data do banco em dd/mm/aaaa (ou — se estiver vazia)."""
+    return data.strftime("%d/%m/%Y") if data else "—"
+
+
+# Mostra as gestantes da enfermeira escolhida no menu
+def mostrar_gestantes(event):
     enfermeira = nome.get()
-    texto = tratando_csv.buscar_cns(enfermeira)
+    gestantes = tratando_csv.buscar_gestantes(enfermeira)
 
-    resultado.delete(0, END)
-    for linha in texto.split("\n"):
-        if linha != "":
-            resultado.insert(END, linha)
+    # limpa a tabela antes de preencher de novo
+    for item in tabela.get_children():
+        tabela.delete(item)
+
+    for g in gestantes:
+        if g.ig_semanas is None:
+            ig = "—"
+        else:
+            ig = f"{g.ig_semanas}s {g.ig_dias_resto}d"
+
+        risco = "Alto Risco" if g.alto_risco == 1 else ""
+        etiqueta = ("alto_risco",) if g.alto_risco == 1 else ()
+
+        tabela.insert("", END, values=(
+            g.gestante,
+            g.cns,
+            formatar_data(g.data_contato),
+            ig,
+            formatar_data(g.data_retorno),
+            risco,
+        ), tags=etiqueta)
+
+    status.config(text=f"{len(gestantes)} gestante(s)")
 
 
-# Quando clica num CNS, manda o número para a automação
-def clicou_cns(event):
-    selecionado = resultado.curselection()
+# Quando clica numa gestante, manda o CNS para a automação
+def clicou_gestante(event):
+    selecionado = tabela.selection()
     if not selecionado:
         return
-    linha = resultado.get(selecionado[0])
-    cns = linha.replace("CNS:", "").split(", ")[0].strip()
+    cns = tabela.set(selecionado[0], "cns")
     automacao.iniciar(cns)
 
 
@@ -32,26 +55,41 @@ frm = ttk.Frame(root, padding=10)
 frm.grid()
 
 # campo do nome da(o) Enfermeira(o)
-ttk.Label(frm, text="Enfermeira (o):").grid(column=0, row=0)
+ttk.Label(frm, text="Enfermeira (o):").grid(column=0, row=0, sticky="w")
 
-# campo para listar enfermeira(o)
-nome = ttk.Combobox(frm, values=tratando_csv.listar_enfermeiras(), state="readonly", width=40)
-nome.grid(column=1, row=0)
-nome.bind("<<ComboboxSelected>>", mostrar_cns)
+nome = ttk.Combobox(frm, values=tratando_csv.listar_enfermeiras(), state="readonly", width=45)
+nome.grid(column=1, row=0, sticky="w")
+nome.bind("<<ComboboxSelected>>", mostrar_gestantes)
 
-# mostrar a lista de CNS do enfermeiro(a)
-resultado = Listbox(frm, width=45, height=15, exportselection=False)
-resultado.grid(column=0, row=1, columnspan=2)
+# tabela com as gestantes
+colunas = ("gestante", "cns", "contato", "ig", "retorno", "risco")
+tabela = ttk.Treeview(frm, columns=colunas, show="headings", height=15)
+
+titulos = {
+    "gestante": ("Gestante", 260),
+    "cns":      ("CNS", 130),
+    "contato":  ("Contato", 90),
+    "ig":       ("IG", 70),
+    "retorno":  ("Retorno", 90),
+    "risco":    ("Risco", 90),
+}
+for coluna, (titulo, largura) in titulos.items():
+    tabela.heading(coluna, text=titulo)
+    tabela.column(coluna, width=largura, anchor="w")
+
+tabela.tag_configure("alto_risco", foreground="red")
+tabela.grid(column=0, row=1, columnspan=2, pady=5)
 
 # barra de scroll
-barra = ttk.Scrollbar(frm, orient=VERTICAL, command=resultado.yview)
-barra.grid(column=2, row=1, sticky='ns')
+barra = ttk.Scrollbar(frm, orient=VERTICAL, command=tabela.yview)
+barra.grid(column=2, row=1, sticky="ns")
+tabela.config(yscrollcommand=barra.set)
 
-# posicionamento da barra de scroll
-resultado.config(yscrollcommand=barra.set)
+# contador de gestantes
+status = ttk.Label(frm, text="")
+status.grid(column=0, row=2, columnspan=2, sticky="w")
 
-# clique no CNS inicia a automação
-resultado.bind("<<ListboxSelect>>", clicou_cns)
-
+# clique na gestante inicia a automação
+tabela.bind("<<TreeviewSelect>>", clicou_gestante)
 
 root.mainloop()
