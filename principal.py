@@ -2,6 +2,9 @@ from tkinter import *
 from tkinter import ttk
 import tratando_csv
 import automacao
+import reg_busca
+import forms
+
 
 
 def formatar_data(data):
@@ -91,5 +94,15 @@ status.grid(column=0, row=2, columnspan=2, sticky="w")
 
 # clique na gestante inicia a automação
 tabela.bind("<<TreeviewSelect>>", clicou_gestante)
+
+# Registrar busca ativa
+adicionar = ttk.Button(frm, text ="Registrar Busca Ativa", command=reg_busca.start)
+adicionar.grid(column=1, row=3)
+
+# finalizar atendimento
+finalizar = ttk.Button(frm, text="Finalizar Atendimento", command=forms.start_forms)
+finalizar.grid(column=2, row=3)
+
+
 
 root.mainloop()
