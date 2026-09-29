@@ -5,7 +5,7 @@ import automacao
 import reg_busca
 import forms
 import monitora_gestante
-from datetime import datetime
+from datetime import datetime, date
 
 
 def formatar_data(data):
@@ -43,32 +43,69 @@ def mostrar_gestantes(event=None):
 
     # contatos registrados pelo app (CSVs); o banco continua intocado
     contatos_app = monitora_gestante.ultimos_contatos()
+    # IG e retorno atualizados pelo app
+    atualizacoes_app = monitora_gestante.ultimas_atualizacoes()
 
     for item in tabela.get_children():
         tabela.delete(item)
 
+    linhas = []          # (retorno para ordenar, valores da linha, etiqueta)
+    cns_da_lista = set()
+
     for g in gestantes:
+        cns_da_lista.add(texto_ou_traco(g.cns))
         # Contato: vale a data mais recente entre a VIEW e o que foi salvo no app
         data_contato = so_data(g.data_contato)
+        contato_banco = data_contato          # contato da VIEW, antes de olhar o app
         data_app = contatos_app.get(texto_ou_traco(g.cns))
         if data_app and (data_contato is None or data_app > data_contato):
             data_contato = data_app
 
-        ig = "—" if g.ig_semanas is None else f"{g.ig_semanas}s {g.ig_dias_resto}d"
+        ig = "—" if g.ig_semanas is None else monitora_gestante.formatar_ig(g.ig_semanas, g.ig_dias_resto)
+        data_retorno = g.data_retorno
+
+        # IG e retorno do app valem se o registro for do mesmo dia (ou mais novo) que o contato da VIEW
+        atual = atualizacoes_app.get(texto_ou_traco(g.cns), {})
+        if "ig" in atual and (contato_banco is None or atual["ig"][0] >= contato_banco):
+            ig = monitora_gestante.formatar_ig(*atual["ig"][1])
+        if "retorno" in atual and (contato_banco is None or atual["retorno"][0] >= contato_banco):
+            data_retorno = atual["retorno"][1]
         alto = eh_alto_risco(g.alto_risco)
+        if "alto_risco" in atual and (contato_banco is None or atual["alto_risco"][0] >= contato_banco):
+            alto = atual["alto_risco"][1]
         risco = "Alto Risco" if alto else ""
         etiqueta = ("alto_risco",) if alto else ()
 
-        tabela.insert("", END, values=(
+        retorno = so_data(data_retorno)
+        linhas.append((retorno, (
             texto_ou_traco(g.gestante),
             texto_ou_traco(g.cns),
             formatar_data(data_contato),
             ig,
-            formatar_data(g.data_retorno),
+            formatar_data(retorno),
             risco,
-        ), tags=etiqueta)
+        ), etiqueta))
 
-    status.config(text=f"{len(gestantes)} gestante(s)")
+    # gestantes NOVAS cadastradas pela Busca Ativa (ainda não estão no banco)
+    novas = [n for n in monitora_gestante.gestantes_busca_ativa(enfermeira)
+             if n["cns"] not in cns_da_lista]
+    for n in novas:
+        ig_nova = "—" if n["ig"] is None else monitora_gestante.formatar_ig(*n["ig"])
+        linhas.append((n["data_retorno"], (
+            texto_ou_traco(n["gestante"]),
+            n["cns"],
+            formatar_data(n["data_contato"]),
+            ig_nova,
+            formatar_data(n["data_retorno"]),
+            "Alto Risco" if n["alto_risco"] else "",
+        ), ("alto_risco",) if n["alto_risco"] else ()))
+
+    # mais urgente primeiro; sem data de retorno vai para o fim (a ordem anterior se mantém)
+    linhas.sort(key=lambda l: (l[0] is None, l[0] or date.max))
+    for _, valores, etiqueta in linhas:
+        tabela.insert("", END, values=valores, tags=etiqueta)
+
+    status.config(text=f"{len(linhas)} gestante(s)")
     mostrar_observacoes()          # lista nova: limpa o quadro de observações
 
 
@@ -126,16 +163,20 @@ def mostrar_observacoes(event=None):
 
 
 # Depois de salvar: recarrega a lista (datas novas) e mantém a mesma gestante selecionada
-def atualizar_tela():
-    cns = cns_selecionado()
+def atualizar_tela(cns_salvo=None):
+    cns = cns_salvo or cns_selecionado()
     if nome.get():
         mostrar_gestantes()
+    achou = False
     if cns:
         for item in tabela.get_children():
             if tabela.set(item, "cns") == cns:
                 tabela.selection_set(item)
                 tabela.see(item)
+                achou = True
                 break
+    if cns_salvo and nome.get() and not achou:
+        status.config(text="Registro salvo para outra enfermeira: escolha-a no menu para ver a gestante.")
     mostrar_observacoes()
 
 
