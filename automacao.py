@@ -52,6 +52,7 @@ return encontrados;
 # ============================================================
 driver = None                 # o Chrome já logado
 trava  = threading.Lock()     # impede duas buscas ao mesmo tempo
+status = ""                   # o que a automação está fazendo (a janela principal mostra)
 
 
 # ============================================================
@@ -128,12 +129,14 @@ def fechar_abas_extras(aba_principal):
 # ETAPAS 1 e 2: abrir o Chrome e esperar o login
 # ============================================================
 def abrir_e_esperar_login():
-    global driver
+    global driver, status
+    status = "Abrindo o e-Saúde no Chrome..."
     driver = webdriver.Chrome()
     driver.maximize_window()
     driver.get(URL_LOGIN)
     esperar_tela_carregar()
 
+    status = "Faça o login no Chrome (até 5 minutos)..."
     WebDriverWait(driver, TEMPO_LOGIN).until(
         EC.visibility_of_element_located(SINAL_LOGIN)
     )
@@ -230,22 +233,41 @@ def buscar_paciente(cns):
 # EXECUÇÃO (roda em segundo plano)
 # ============================================================
 def executar(cns):
+    global status
     with trava:
         try:
             if not navegador_aberto():
                 abrir_e_esperar_login()
+            status = "Buscando a gestante no e-Saúde..."
             buscar_paciente(cns)
+            status = "Gestante aberta no e-Saúde."
         except Exception as erro:
-            print(f"[automação] ERRO com o CNS informado: {type(erro).__name__}")
+            # só o tipo do erro: nunca mostra CNS ou nome da paciente
+            status = f"Erro na automação: {type(erro).__name__}. Clique na gestante de novo."
 
 
 # ============================================================
 # PORTA DE ENTRADA: chamada pelo principal.py no clique da gestante
 # ============================================================
 def iniciar(cns):
+    """Devolve False se ainda estiver buscando a gestante anterior; True nos outros casos."""
     cns = str(cns or "").strip()
     if not cns or cns in ("—", "None"):
-        return                       # gestante sem CNS: nada a buscar
+        return True                  # gestante sem CNS: nada a buscar
     if trava.locked():
-        return                       # ainda buscando a anterior
+        return False                 # ainda buscando a anterior
     threading.Thread(target=executar, args=(cns,), daemon=True).start()
+    return True
+
+
+# ============================================================
+# FECHAR: chamada quando a janela principal é fechada
+# ============================================================
+def fechar():
+    global driver
+    if driver is not None:
+        try:
+            driver.quit()            # fecha o Chrome aberto pela automação
+        except Exception:
+            pass
+        driver = None
