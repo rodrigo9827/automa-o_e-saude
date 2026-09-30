@@ -32,14 +32,14 @@ def listar_enfermeiras():
 
 
 def buscar_gestantes(enfermeira):
-    """Devolve as gestantes atendidas pela enfermeira, com IG, retorno e alto risco."""
+    """Devolve as gestantes atendidas pela enfermeira, com IG, retorno, alto risco e CPF."""
     conexao = conectar()
     try:
         cursor = conexao.cursor()
         cursor.execute("""
             SELECT gestante, cns, data_contato,
                    ig_semanas, ig_dias_resto,
-                   data_retorno, alto_risco
+                   data_retorno, alto_risco, cpf
             FROM dbo.vw_RetornoGestantes
             WHERE enfermeira = ?
             ORDER BY CASE WHEN data_retorno IS NULL THEN 1 ELSE 0 END,

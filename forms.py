@@ -143,10 +143,12 @@ def caixa_observacoes(pai, linha):
     return caixa
 
 
-def start_forms(parent=None, cns_inicial="", enfermeira_inicial="", ao_salvar=None):
+def start_forms(parent=None, cns_inicial="", enfermeira_inicial="", ao_salvar=None,
+                cpf_inicial="", nome_inicial=""):
     """Abre o formulário 'Finalizar Atendimento'.
     parent: a janela principal (abre como janela filha). Sem parent, abre sozinho (para testes).
-    cns_inicial / enfermeira_inicial: já vêm preenchidos com a gestante selecionada na lista.
+    cns_inicial / cpf_inicial / nome_inicial / enfermeira_inicial: já vêm preenchidos
+    com a gestante selecionada na lista. Precisa de CNS ou CPF (sem CNS, a busca é pelo CPF).
     ao_salvar: função chamada depois de salvar (a principal usa para atualizar as observações)."""
     if parent is None:
         janela = Tk()
@@ -174,25 +176,32 @@ def start_forms(parent=None, cns_inicial="", enfermeira_inicial="", ao_salvar=No
 
     conseguiu_contato = linha_sim_nao(frm, "Conseguiu o contato?", 2, janela, comando=atualizar_contato)
 
-    cns = linha_texto(frm, "CNS da Gestante (15 números):", 3, largura=25)
+    # identificação da gestante (sempre visível): CNS, ou CPF quando não houver CNS
+    nome_gestante = linha_texto(frm, "Nome da Gestante:", 3, largura=45)
+    nome_gestante.insert(0, nome_inicial or "")
+
+    cns = linha_texto(frm, "CNS da Gestante (15 números):", 4, largura=25)
     cns.insert(0, cns_inicial or "")
 
-    numero = linha_texto(frm, "Número do contato:", 4, largura=25)
+    cpf = linha_texto(frm, "CPF da Gestante (11 números):", 5, largura=25)
+    cpf.insert(0, cpf_inicial or "")
 
-    data_contato = linha_texto(frm, "Data do contato (dd/mm/aaaa):", 5, largura=12)
+    numero = linha_texto(frm, "Número do contato:", 6, largura=25)
+
+    data_contato = linha_texto(frm, "Data do contato (dd/mm/aaaa):", 7, largura=12)
     data_contato.insert(0, date.today().strftime("%d/%m/%Y"))    # já vem com hoje
 
     # ================= SE NÃO CONSEGUIU O CONTATO =================
 
     frame_sem_contato = ttk.Frame(frm)
-    frame_sem_contato.grid(column=0, row=6, columnspan=2, sticky="w", pady=(10, 0))
+    frame_sem_contato.grid(column=0, row=8, columnspan=2, sticky="w", pady=(10, 0))
     motivo = linha_combo(frame_sem_contato, "Qual o motivo?", MOTIVOS_SEM_CONTATO, 0)
     frame_sem_contato.grid_remove()
 
     # ================= SE CONSEGUIU O CONTATO =================
 
     frame_contato = ttk.Frame(frm)
-    frame_contato.grid(column=0, row=7, columnspan=2, sticky="w", pady=(10, 0))
+    frame_contato.grid(column=0, row=9, columnspan=2, sticky="w", pady=(10, 0))
 
     classificacao = linha_combo(frame_contato, "Classificação:", ["Gestante", "Puérpera", "Aborto"], 0, largura=25)
 
@@ -251,6 +260,12 @@ def start_forms(parent=None, cns_inicial="", enfermeira_inicial="", ao_salvar=No
     gestante_risco = linha_sim_nao(frame_gestante, "É gestante de risco?", 0, janela)
     pre_natal = linha_sim_nao(frame_gestante, "Acompanhamento pré-natal?", 1, janela)
 
+    # Atualização da IG e do retorno: aparecem na lista da tela principal (ambos opcionais)
+    ig_gestante = linha_texto(frame_gestante, "Idade Gestacional \n(ss+dd, ex.: 30+2):", 2, largura=8)
+    retorno_gestante = linha_texto(frame_gestante, "Data de retorno (opcional):", 3, largura=12)
+    ttk.Label(frame_gestante, text="Se informar a IG e deixar o retorno vazio, o retorno é calculado pela regra da IG.",
+              foreground="gray").grid(column=1, row=4, sticky="w")
+
     frame_gestante.grid_remove()
 
     # ---------- ABORTO: sem campos extras ----------
@@ -272,8 +287,24 @@ def start_forms(parent=None, cns_inicial="", enfermeira_inicial="", ao_salvar=No
 
     frame_contato.grid_remove()     # só aparece quando marcar "Sim" em "Conseguiu o contato?"
 
+
+    # ================= CASO CRÍTICO (sempre aparece) =================
+
+    def atualizar_caso_critico():
+        critico = caso_critico.get() == 1
+        mostrar(cont_caso_critico, critico)
+        if not critico:
+            qual_caso_critico.delete(0, END)
+
+    caso_critico = linha_sim_nao(frm, "Caso crítico?", 10, janela, comando=atualizar_caso_critico)
+    cont_caso_critico = container_condicional(frm, 11)
+    qual_caso_critico = linha_texto(cont_caso_critico, "Qual o caso crítico?", 0, largura=60)
+
+
     # ================= OBSERVAÇÕES (sempre aparece) =================
-    observacoes = caixa_observacoes(frm, 8)
+
+    observacoes = caixa_observacoes(frm, 12)
+
 
     # ================= VALIDAÇÃO =================
 
@@ -284,13 +315,16 @@ def start_forms(parent=None, cns_inicial="", enfermeira_inicial="", ao_salvar=No
             erros.append("Escolha a enfermeira.")
         if not dados["teleoperador"]:
             erros.append("Escolha o teleoperador (ou 'Nenhum').")
-        if not monitora_gestante.cns_valido(dados["cns"]):
-            erros.append("O CNS precisa ter exatamente 15 números.")
+        erros += monitora_gestante.validar_identificacao(dados["cns"], cpf.get(), dados["gestante"])
         data = monitora_gestante.ler_data(dados["data_contato"])
         if data is None:
             erros.append("Data do contato inválida (use dd/mm/aaaa).")
         elif monitora_gestante.data_futura(data):
             erros.append("A data do contato não pode ser depois de hoje.")
+        if dados["caso_critico"] == -1:
+            erros.append("Responda se é caso crítico.")
+        elif dados["caso_critico"] == 1 and not dados["qual_caso_critico"]:
+            erros.append("Informe qual é o caso crítico.")
         if dados["conseguiu_contato"] == -1:
             erros.append("Responda se conseguiu o contato.")
         elif dados["conseguiu_contato"] == 0 and not dados.get("motivo_sem_contato"):
@@ -298,6 +332,18 @@ def start_forms(parent=None, cns_inicial="", enfermeira_inicial="", ao_salvar=No
         elif dados["conseguiu_contato"] == 1:
             if not dados.get("classificacao"):
                 erros.append("Escolha a classificação (Gestante, Puérpera ou Aborto).")
+            if dados.get("classificacao") == "Gestante":
+                ig_txt = dados.get("ig_semanas", "")
+                if ig_txt and monitora_gestante.ler_ig(ig_txt) is None:
+                    erros.append("Idade gestacional deve estar no formato semanas+dias, "
+                                 "ex.: 30+2 (semanas 0 a 45, dias 0 a 6).")
+                ret_txt = dados.get("data_retorno", "")
+                if ret_txt:
+                    retorno = monitora_gestante.ler_data(ret_txt)
+                    if retorno is None:
+                        erros.append("Data de retorno inválida (use dd/mm/aaaa) ou deixe vazia.")
+                    elif data is not None and retorno < data:
+                        erros.append("A data de retorno não pode ser antes da data do contato.")
             if dados.get("local_parto") == "Outro" and not dados.get("outro_local"):
                 erros.append("Informe qual foi o outro local do parto.")
             if dados.get("houve_violencia") == 1 and not dados.get("tipo_violencia"):
@@ -314,8 +360,12 @@ def start_forms(parent=None, cns_inicial="", enfermeira_inicial="", ao_salvar=No
             "teleoperador": teleoperador.get(),
             "conseguiu_contato": conseguiu_contato.get(),
             "cns": cns.get().strip(),
+            "cpf": monitora_gestante.so_digitos(cpf.get()),
+            "gestante": nome_gestante.get().strip(),
             "numero": numero.get().strip(),
             "data_contato": data_contato.get().strip(),
+            "caso_critico": caso_critico.get(),
+            "qual_caso_critico": qual_caso_critico.get().strip() if caso_critico.get() == 1 else "",
             "observacoes": observacoes.get("1.0", END).strip(),
         }
 
@@ -344,6 +394,8 @@ def start_forms(parent=None, cns_inicial="", enfermeira_inicial="", ao_salvar=No
                 dados.update({
                     "gestante_risco": gestante_risco.get(),
                     "pre_natal": pre_natal.get(),
+                    "ig_semanas": ig_gestante.get().strip(),
+                    "data_retorno": retorno_gestante.get().strip(),
                 })
 
         # --- validação: não salva registro incompleto ---
@@ -352,9 +404,19 @@ def start_forms(parent=None, cns_inicial="", enfermeira_inicial="", ao_salvar=No
             messagebox.showwarning("Faltam dados", "\n".join(erros), parent=janela)
             return
 
-        # --- salva no CSV (o banco de dados NÃO é alterado) ---
+        # IG informada e retorno vazio: calcula pela mesma regra da VIEW
+        if dados.get("data_retorno"):
+            dados["data_retorno"] = monitora_gestante.ler_data(dados["data_retorno"]).strftime("%d/%m/%Y")
+        elif dados.get("ig_semanas"):
+            contato = monitora_gestante.ler_data(dados["data_contato"])
+            dados["data_retorno"] = monitora_gestante.calcular_retorno(
+                contato, *monitora_gestante.ler_ig(dados["ig_semanas"])).strftime("%d/%m/%Y")
+        if dados.get("ig_semanas"):          # guarda sempre como ss+dd
+            dados["ig_semanas"] = "{}+{}".format(*monitora_gestante.ler_ig(dados["ig_semanas"]))
+
+        # --- salva nos CSVs (o banco de dados NÃO é alterado) ---
         try:
-            monitora_gestante.salvar(dados)
+            avisos = monitora_gestante.salvar(dados)
         except PermissionError:
             messagebox.showerror(
                 "Arquivo em uso",
@@ -367,12 +429,16 @@ def start_forms(parent=None, cns_inicial="", enfermeira_inicial="", ao_salvar=No
             messagebox.showerror("Arquivo antigo", str(erro), parent=janela)
             return
 
-        messagebox.showinfo("Salvo", "Atendimento registrado com sucesso.", parent=janela)
+        if avisos:
+            messagebox.showwarning("Salvo com aviso", "\n\n".join(avisos), parent=janela)
+        else:
+            messagebox.showinfo("Salvo", "Atendimento registrado com sucesso.", parent=janela)
         janela.destroy()      # fecha: o próximo atendimento começa com o formulário limpo
         if ao_salvar:
-            ao_salvar()       # avisa a tela principal para mostrar a observação nova
+            # avisa a tela principal qual gestante foi salva (pelo CNS ou, sem CNS, pelo CPF)
+            ao_salvar(monitora_gestante.chave(dados["cns"], dados["cpf"]))
 
-    ttk.Button(frm, text="Enviar", command=enviar).grid(column=0, row=9, columnspan=2, pady=(15, 0))
+    ttk.Button(frm, text="Enviar", command=enviar).grid(column=0, row=13, columnspan=2, pady=(15, 0))
 
     if parent is None:
         janela.mainloop()

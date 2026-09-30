@@ -25,3 +25,8 @@ numero de contato
 Tratamento de sifilis
 
 Observações
+
+
+### Alterações
+
+incuir na busca ativa gestante poerpera e aborto como checkbox para salvar no dbs
