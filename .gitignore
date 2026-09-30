@@ -2,4 +2,5 @@
 *.xlsx
 __pycache__/
 .vs/
+teste.slnx
 automacao_log.txt
