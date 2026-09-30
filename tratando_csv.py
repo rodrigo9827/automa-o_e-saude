@@ -1,22 +1,22 @@
 import pyodbc
 
 # Endereço do banco (o mesmo que funcionou no teste.py)
+SERVIDOR = "192.168.197.24"
+BANCO = "GeoStaging"
+
 STRING_CONEXAO = (
     "DRIVER={ODBC Driver 18 for SQL Server};"
     "SERVER=localhost;"
     "DATABASE=poc_gestante;"
+    # f"SERVER={SERVIDOR};DATABASE={BANCO};" # String de conexão com banco do server
     "Trusted_Connection=yes;"
     "TrustServerCertificate=yes;"
 )
 
-
 def conectar():
-    """Abre uma conexão com o banco."""
     return pyodbc.connect(STRING_CONEXAO)
 
-
 def listar_enfermeiras():
-    """Devolve a lista de enfermeiras, sem repetir, em ordem alfabética."""
     conexao = conectar()
     try:
         cursor = conexao.cursor()
@@ -29,7 +29,6 @@ def listar_enfermeiras():
         return [linha.enfermeira for linha in cursor.fetchall()]
     finally:
         conexao.close()
-
 
 def buscar_gestantes(enfermeira):
     """Devolve as gestantes atendidas pela enfermeira, com IG, retorno, alto risco e CPF."""

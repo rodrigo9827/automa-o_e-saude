@@ -74,7 +74,7 @@ VALUES
     (s.chave, s.cns, s.cpf, s.gestante, s.enfermeira, s.teleoperador, s.classificacao, s.conseguiu_contato,
      s.data_contato, s.ig_semanas, s.ig_dias, s.data_retorno, s.alto_risco, s.caso_critico,
      s.qual_caso_critico, s.ultima_observacao, s.ultimo_formulario, s.data_hora_modificacao);
-"""
+""" # nosec B608 - TABELA_ATUAL é constante fixa; valores vão por parâmetros (?)
 
 # ordem dos "?" do SQL_ATUAL
 CAMPOS_ATUAL = [

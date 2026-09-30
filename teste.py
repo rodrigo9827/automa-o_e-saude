@@ -1,39 +1,30 @@
-import tkinter as tk
-from tkinter import messagebox
+import pyodbc
+import os
 
-def mostrar_resultados():
-    # Coleta os valores atuais
-    status_checkbox = "Sim" if valor_check.get() else "Não"
-    status_radio = valor_radio.get()
-    
-    messagebox.showinfo("Resultados", f"Checkbox selecionado? {status_checkbox}\nRadio selecionado: {status_radio}")
+SERVIDOR = "192.168.197.24"
+BANCO = "GeoStaging"
 
-# Configuração da janela principal
-janela = tk.Tk()
-janela.title("Exemplo Sim ou Não")
-janela.geometry("300x250")
+STRING_CONEXAO = (
+    "DRIVER={ODBC Driver 18 for SQL Server};"
+    f"SERVER={SERVIDOR};DATABASE={BANCO};"
+    #f"UID={os.environ['DB_USER']}"
+    "Trusted_Connection=yes;"
+    "TrustServerCertificate=yes;"
+)
 
-# --- 1. EXEMPLO COM CHECKBOX (Checkbutton) ---
-tk.Label(janela, text="Exemplo Checkbox:", font=("Arial", 10, "bold")).pack(pady=(10, 0))
+conexao = pyodbc.connect(STRING_CONEXAO, timeout=10)
+try:
+    cursor = conexao.cursor()
 
-valor_check = tk.BooleanVar()  # Guarda True (marcado) ou False (desmarcado)
-checkbox = tk.Checkbutton(janela, text="Deseja continuar?", variable=valor_check)
-checkbox.pack(pady=5)
+    # 1. Confirma em qual servidor/banco você realmente está
+    cursor.execute("SELECT @@SERVERNAME, DB_NAME();")
+    print("Conectado em:", cursor.fetchone())
 
-
-# --- 2. EXEMPLO COM RADIO BUTTONS (Radiobutton) ---
-tk.Label(janela, text="Exemplo Radio Button:", font=("Arial", 10, "bold")).pack(pady=(20, 0))
-
-valor_radio = tk.StringVar(value="Sim") # Define "Sim" como padrão
-
-radio_sim = tk.Radiobutton(janela, text="Sim", variable=valor_radio, value="Sim")
-radio_sim.pack()
-
-radio_nao = tk.Radiobutton(janela, text="Não", variable=valor_radio, value="Não")
-radio_nao.pack()
-
-
-# --- Botão para verificar o estado ---
-tk.Button(janela, text="Verificar Respostas", command=mostrar_resultados).pack(pady=20)
-
-janela.mainloop()
+    # 2. Consulta de teste (só leitura, limitada a 10 linhas)
+    cursor.execute("SELECT TOP (10) * FROM map.Paciente;")
+    colunas = [c[0] for c in cursor.description]
+    print(colunas)
+    for linha in cursor.fetchall():
+        print(linha)
+finally:
+    conexao.close()
