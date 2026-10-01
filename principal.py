@@ -7,14 +7,12 @@ import forms
 import monitora_gestante
 from datetime import datetime, date
 
-
+# Configurações
 def formatar_data(data):
-    """Transforma a data do banco em dd/mm/aaaa (ou — se estiver vazia)."""
     return data.strftime("%d/%m/%Y") if data else "—"
 
 
 def so_data(valor):
-    """O banco pode mandar data ou data+hora; aqui fica só a data (ou None)."""
     if isinstance(valor, datetime):
         return valor.date()
     return valor
@@ -25,8 +23,18 @@ def texto_ou_traco(valor):
     return "—" if valor in (None, "") else str(valor)
 
 
+def texto_busca_ativa(busca, contato_banco=None):
+    """'Busca ativa 30/09 14:35' enquanto a busca ativa estiver em andamento.
+    Some quando chega um contato novo do e-Saúde (data da VIEW depois da data da busca);
+    quando a enfermeira finaliza o atendimento, o monitora_gestante já não a devolve."""
+    if not busca:
+        return ""
+    if contato_banco is not None and contato_banco > busca["data_contato"]:
+        return ""
+    return f"Busca ativa {busca['hora']}"
+
+
 def eh_alto_risco(valor):
-    """Aceita os jeitos que o banco pode mandar: 1, True, "1", "S", "Sim"."""
     return str(valor).strip().upper() in ("1", "TRUE", "S", "SIM")
 
 
@@ -45,6 +53,8 @@ def mostrar_gestantes(event=None):
     contatos_app = monitora_gestante.ultimos_contatos()
     # IG e retorno atualizados pelo app
     atualizacoes_app = monitora_gestante.ultimas_atualizacoes()
+    # buscas ativas ainda em andamento (informação temporária da coluna "Busca Ativa")
+    buscas_app = monitora_gestante.buscas_ativas_pendentes()
 
     for item in tabela.get_children():
         tabela.delete(item)
@@ -77,6 +87,7 @@ def mostrar_gestantes(event=None):
             alto = atual["alto_risco"][1]
         risco = "Alto Risco" if alto else ""
         etiqueta = ("alto_risco",) if alto else ()
+        busca = texto_busca_ativa(buscas_app.get(k), contato_banco)
 
         retorno = so_data(data_retorno)
         linhas.append((retorno, (
@@ -86,6 +97,7 @@ def mostrar_gestantes(event=None):
             ig,
             formatar_data(retorno),
             risco,
+            busca,
             texto_ou_traco(g.cpf),             # coluna escondida (usada pela automação)
         ), etiqueta))
 
@@ -101,6 +113,7 @@ def mostrar_gestantes(event=None):
             ig_nova,
             formatar_data(n["data_retorno"]),
             "Alto Risco" if n["alto_risco"] else "",
+            texto_busca_ativa(buscas_app.get(n["chave"])),
             texto_ou_traco(n["cpf"]),
         ), ("alto_risco",) if n["alto_risco"] else ()))
 
@@ -245,7 +258,7 @@ nome.grid(column=1, row=0, sticky="w")
 nome.bind("<<ComboboxSelected>>", mostrar_gestantes)
 
 # tabela com as gestantes
-colunas = ("gestante", "cns", "contato", "ig", "retorno", "risco", "cpf")
+colunas = ("gestante", "cns", "contato", "ig", "retorno", "risco", "busca", "cpf")
 tabela = ttk.Treeview(frm, columns=colunas, show="headings", height=15,
                       displaycolumns=colunas[:-1])     # o CPF fica guardado, mas não aparece
 
@@ -256,6 +269,7 @@ titulos = {
     "ig":       ("IG", 70),
     "retorno":  ("Retorno", 90),
     "risco":    ("Risco", 90),
+    "busca":    ("Busca Ativa", 150),
 }
 for coluna, (titulo, largura) in titulos.items():
     tabela.heading(coluna, text=titulo)

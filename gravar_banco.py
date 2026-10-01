@@ -74,7 +74,7 @@ VALUES
     (s.chave, s.cns, s.cpf, s.gestante, s.enfermeira, s.teleoperador, s.classificacao, s.conseguiu_contato,
      s.data_contato, s.ig_semanas, s.ig_dias, s.data_retorno, s.alto_risco, s.caso_critico,
      s.qual_caso_critico, s.ultima_observacao, s.ultimo_formulario, s.data_hora_modificacao);
-""" # nosec B608 - TABELA_ATUAL é constante fixa; valores vão por parâmetros (?)
+""" 
 
 # ordem dos "?" do SQL_ATUAL
 CAMPOS_ATUAL = [
@@ -89,7 +89,7 @@ def sql_adm(colunas):
     (CAMPOS_ADM), nunca do que foi digitado; os VALORES vão sempre como parâmetro (?)."""
     nomes = ", ".join(f"[{c}]" for c in colunas)
     marcas = ", ".join("?" for _ in colunas)
-    return f"INSERT INTO {TABELA_ADM} ({nomes}) VALUES ({marcas});"
+    return f"INSERT INTO {TABELA_ADM} ({nomes}) VALUES ({marcas});" #nosec B608
 
 
 def salvar(adm, atual):
@@ -99,7 +99,7 @@ def salvar(adm, atual):
     conexao = pyodbc.connect(STRING_CONEXAO, timeout=TEMPO_CONEXAO, autocommit=False)
     try:
         cursor = conexao.cursor()
-        colunas = list(adm)
+        colunas = [c for c in adm if adm[c] is not None]
         cursor.execute(sql_adm(colunas), [adm[c] for c in colunas])
         cursor.execute(SQL_ATUAL, [atual.get(c) for c in CAMPOS_ATUAL])
         conexao.commit()

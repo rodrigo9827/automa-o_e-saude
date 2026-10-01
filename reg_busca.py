@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, datetime
 from tkinter import *
 from tkinter import ttk, messagebox
 import tratando_csv
@@ -13,6 +13,9 @@ def start(parent=None, enfermeira_inicial="", ao_salvar=None):
     Serve para cadastrar gestantes NOVAS para a enfermeira: só a enfermeira vem preenchida.
     Precisa de CNS ou CPF (sem CNS, a automação busca pelo CPF).
     ao_salvar: função chamada depois de salvar; recebe a chave da gestante (CNS, ou CPF se não houver CNS)."""
+    # hora em que a enfermeira clicou em "Registrar Busca Ativa" (a janela abriu agora)
+    hora_inicio = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
     if parent is None:
         janela = Tk()
     else:
@@ -136,6 +139,8 @@ def start(parent=None, enfermeira_inicial="", ao_salvar=None):
     observacoes.grid(column=1, row=12, sticky="w", pady=4)
 
     def enviar():
+        # hora em que clicou em "Enviar" (se faltar dado e ela corrigir, vale o último clique)
+        hora_envio = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         erros = []
 
         if not nome.get():
@@ -195,6 +200,8 @@ def start(parent=None, enfermeira_inicial="", ao_salvar=None):
             "caso_critico": caso_critico.get(),
             "qual_caso_critico": qual_caso_critico.get().strip() if caso_critico.get() == 1 else "",
             "observacoes": observacoes.get("1.0", END).strip(),
+            "busca_hora_inicio": hora_inicio,
+            "busca_hora_envio": hora_envio,
         }
 
         try:

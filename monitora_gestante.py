@@ -61,6 +61,8 @@ CAMPOS_BUSCA_ATIVA = [
     "gestante_puerpera",
     "gestante_aborto",
     "cpf",                   # nova (busca sem CNS): sempre no fim
+    "busca_hora_inicio",     # hora em que clicou em "Registrar Busca Ativa" (abriu a janela)
+    "busca_hora_envio",      # hora em que clicou em "Enviar"
 ]
 
 # Colunas do CSV administrativo: TODAS as informações das duas janelas juntas.
@@ -103,6 +105,8 @@ CAMPOS_ADM = [
     "gestante_aborto",
     "gestante_gestante",
     "cpf",                   # nova (busca sem CNS): sempre no fim
+    "busca_hora_inicio",     # só a Busca Ativa preenche
+    "busca_hora_envio",
 ]
 
 # As perguntas Sim/Não guardam 1, 0 ou -1; no CSV vira texto
@@ -326,6 +330,9 @@ def _linha_adm_banco(formulario, dados, data_hora):
     banco["data_hora_modificacao"] = datetime.strptime(data_hora, "%Y-%m-%d %H:%M:%S")
     banco["data_contato"] = ler_data(linha["data_contato"])
     banco["data_retorno"] = ler_data(linha["data_retorno"])
+    for campo in ("busca_hora_inicio", "busca_hora_envio"):
+        banco[campo] = (datetime.strptime(linha[campo], "%Y-%m-%d %H:%M:%S")
+                        if linha[campo] else None)
     return banco
 
 
@@ -395,7 +402,8 @@ def _salvar_com_adm(arquivo, campos, formulario, dados):
         # só o tipo do erro: nunca mostra dados da paciente
         avisos.append("O registro foi salvo no CSV, mas NÃO foi gravado no banco de dados "
                       f"({type(erro).__name__}). Verifique se o SQL Server está ligado e se "
-                      "o script 03_tabelas_app.sql já foi rodado.")
+                      "os scripts 03, 04 e 05 (tabelas_app, migrar_app_cpf, busca_ativa_horas) "
+                      "já foram rodados.")
     return avisos
 
 
@@ -545,3 +553,42 @@ def ultimos_contatos():
             if cns and data and (cns not in contatos or data > contatos[cns]):
                 contatos[cns] = data
     return contatos
+
+
+# ============================================================
+# BUSCA ATIVA TEMPORÁRIA (coluna "Busca Ativa" da tela principal)
+# Só LÊ os CSVs: nada é alterado.
+# ============================================================
+def buscas_ativas_pendentes():
+    """Gestantes com Busca Ativa ainda "em andamento".
+    Dicionário {chave: {"data_contato": data do contato da busca, "hora": "30/09 14:35"}}.
+    A busca ativa deixa de estar pendente quando a enfermeira salva um Finalizar Atendimento
+    para a mesma gestante DEPOIS dela. (O outro jeito de encerrar, um contato novo vindo do
+    e-Saúde, a tela principal confere comparando com a data do contato da VIEW.)"""
+    buscas = {}                  # chave -> (data_hora_modificacao, linha) da busca mais recente
+    for linha in _ler_csv(ARQUIVO_BUSCA_ATIVA):
+        k = chave_linha(linha)
+        hora = linha.get("data_hora_modificacao", "")
+        if k and (k not in buscas or hora >= buscas[k][0]):
+            buscas[k] = (hora, linha)
+
+    finalizados = {}             # chave -> data_hora do último Finalizar Atendimento
+    for linha in _ler_csv(ARQUIVO_MONITORAMENTO):
+        k = chave_linha(linha)
+        hora = linha.get("data_hora_modificacao", "")
+        if k and hora > finalizados.get(k, ""):
+            finalizados[k] = hora
+
+    pendentes = {}
+    for k, (hora, linha) in buscas.items():
+        contato = ler_data(linha.get("data_contato"))
+        if contato is None or finalizados.get(k, "") >= hora:
+            continue             # sem data válida, ou já finalizada depois da busca
+        # mostra a hora do clique em Enviar (registros antigos: a hora em que foi salvo)
+        envio = (linha.get("busca_hora_envio") or hora).strip()
+        try:
+            texto = datetime.strptime(envio, "%Y-%m-%d %H:%M:%S").strftime("%d/%m %H:%M")
+        except ValueError:
+            texto = envio
+        pendentes[k] = {"data_contato": contato, "hora": texto}
+    return pendentes

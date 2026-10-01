@@ -211,7 +211,6 @@ def abrir_e_esperar_login():
     )
     esperar_tela_carregar()
 
-
 # ============================================================
 # ETAPAS 3 a 8: buscar a gestante e abrir
 #   - com CNS: busca só pelo CNS (o CPF fica vazio)
@@ -332,7 +331,6 @@ def buscar_paciente(cns="", cpf="", nome=""):
     registrar(f"  clique no próprio cartão: abriu a paciente? {'SIM' if mudou else 'não'}")
     return mudou
 
-
 # ============================================================
 # EXECUÇÃO (roda em segundo plano)
 # ============================================================
@@ -356,7 +354,6 @@ def executar(cns, cpf="", nome=""):
             status = f"Erro na automação: {type(erro).__name__}. Clique na gestante de novo."
             registrar("ERRO:\n" + traceback.format_exc())
 
-
 # ============================================================
 # PORTA DE ENTRADA: chamada pelo principal.py no clique da gestante
 # ============================================================
@@ -364,7 +361,6 @@ def limpar(valor):
     """Tira espaços e trata '—' / 'None' como vazio."""
     valor = str(valor or "").strip()
     return "" if valor in ("—", "None") else valor
-
 
 def iniciar(cns, cpf="", nome=""):
     """Com CNS: busca pelo CNS. Sem CNS: busca pelo CPF.
